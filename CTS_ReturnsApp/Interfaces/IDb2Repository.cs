@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Mvc;
     {
         public interface IDb2Repository
         {
-       
 
 
-        public JsonResult InfoTruck(string vin)
+
+        public JsonResult InfoTruck(string vin);
        
 
         }

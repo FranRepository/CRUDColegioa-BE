@@ -2,8 +2,8 @@
 {
     public class CtsAndOus
     {
-        public CtsReturns CtsReturns { get; set; }
-        public List<CtsOu> CtsOu { get; set; }
+        public CtsReturns? CtsReturns { get; set; }
+        public List<CtsOu>? CtsOu { get; set; }
 
     }
 }

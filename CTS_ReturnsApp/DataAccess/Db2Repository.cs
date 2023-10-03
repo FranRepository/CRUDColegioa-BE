@@ -38,7 +38,7 @@ namespace CTS_ReturnsApp.DataAccess
 
         public List<DataOMTExcel>? GetDataFromDB2(List<string> vins)
         {
-            string query = @"$SELECT
+            string query = @"SELECT
                                 SV.VEH_SER_NO
 	                            ,CAST(SV.TS_LOAD AT TIME ZONE '-06:00' AS TIMESTAMP) AS SAL_TS_LOAD
                                 , CASE
@@ -85,6 +85,7 @@ namespace CTS_ReturnsApp.DataAccess
                                 AND SV.VEH_SER_NO IN('" + String.Join("', '", vins) + "') FOR FETCH ONLY WITH UR";
             using (OleDbConnection cnx = new OleDbConnection(_connectionString))
             {
+                cnx.Open();
                 OleDbCommand cmd = new OleDbCommand(query, cnx);
                 OleDbDataReader registros = cmd.ExecuteReader();
                 List<DataOMTExcel> list_return = new List<DataOMTExcel>();
@@ -99,7 +100,7 @@ namespace CTS_ReturnsApp.DataAccess
                         vin = registros["VEH_SER_NO"].ToString().Trim()
                     });
                 }
-
+                cnx.Close();
                 //mail.SendMailError("Si llega hasta después de checar los datos en DB2 peggo", new Exception("Probando"));
                 return list_return;
             }
