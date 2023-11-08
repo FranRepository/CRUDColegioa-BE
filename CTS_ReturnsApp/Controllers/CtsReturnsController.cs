@@ -5,6 +5,8 @@ using CTS_ReturnsApp.UnitOfWork;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using Omu.ValueInjecter.Utils;
+using System.Data.SqlClient;
+using System.Linq;
 
 namespace CTS_ReturnsApp.Controllers
 {
@@ -17,21 +19,42 @@ namespace CTS_ReturnsApp.Controllers
         private readonly IUnitOfWorkDb2 _unitOfWorkDb2;
         private readonly MexicanaHoldsContext _MexicanaHoldsContext;
 
-        public CtsReturnsController(IUnitOfWork unitOfWork, IUnitOfWorkDb2 unitOfWorkDb2)
+        public CtsReturnsController(IUnitOfWork unitOfWork, IUnitOfWorkDb2 unitOfWorkDb2, MexicanaHoldsContext mexicanaHoldsContext)
         {
             _unitOfWork = unitOfWork;
             _unitOfWorkDb2 = unitOfWorkDb2;
+            _MexicanaHoldsContext = mexicanaHoldsContext;
         }
-        
+        [HttpGet(Name = "UnitData")]
+        public InfoUnitResult UnitData(string VIN)
+        {
+
+                try
+                {
+
+                    JsonResult JsonR = _unitOfWorkDb2.Db2.InfoTruck(VIN);
+                    string JsonStr = JsonConvert.SerializeObject(JsonR.Value);
+                    InfoUnitResult responseUnitInfo = JsonConvert.DeserializeObject<InfoUnitResult>(JsonStr);
+
+                
+                return responseUnitInfo;
+
+
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+        }
 
         [HttpPost(Name = "NewCts")]
-        public JsonResult NewCts(CtsAndOus CtsAndOus)
+        public async Task<JsonResult> NewCts(CtsAndOus CtsAndOus)
         {
 
 
             if (CtsAndOus.CtsReturns.Itemid != 0)
             {
-                return UpdateHold(CtsAndOus);
+                return await UpdateHold(CtsAndOus);
             }
             else
             {
@@ -40,7 +63,7 @@ namespace CTS_ReturnsApp.Controllers
                    
 
                     JsonResult JsonR = _unitOfWorkDb2.Db2.InfoTruck(CtsAndOus.CtsReturns.Vin);
-                    string JsonStr = JsonConvert.SerializeObject(JsonR);
+                    string JsonStr = JsonConvert.SerializeObject(JsonR.Value);
                     InfoUnitResult responseUnitInfo = JsonConvert.DeserializeObject<InfoUnitResult>(JsonStr);
 
                     if (JsonStr != "" && JsonStr != "\"\"")
@@ -58,23 +81,25 @@ namespace CTS_ReturnsApp.Controllers
 
                 CtsReturns new_cts = CtsAndOus.CtsReturns;
                 _MexicanaHoldsContext.CtsReturns.Add(new_cts);
-                int result_cts = _MexicanaHoldsContext.SaveChanges();
+                int result_cts = await _MexicanaHoldsContext.SaveChangesAsync();
 
                 DateTime today = DateTime.Now;
                 
 
                     if (result_cts > 0)
                     {
-                        foreach (CtsOu ou in CtsAndOus.CtsOu)
-                        {
-                                //Se agregan las ous
+                        if (CtsAndOus.CtsOu != null) { 
+                            foreach (CtsOu ou in CtsAndOus.CtsOu)
+                            {
+                                    //Se agregan las ous
 
-                                CtsOu new_OuCts = ou;
-                                new_OuCts.CtsRetursId = _MexicanaHoldsContext.CtsReturns.OrderByDescending(x=>x.Itemid).Select(x=>x.Itemid).First();
-                                _MexicanaHoldsContext.CtsReturns.Add(new_cts);
+                                    CtsOu new_OuCts = ou;
+                                    new_OuCts.CtsRetursId = _MexicanaHoldsContext.CtsReturns.OrderByDescending(x=>x.Itemid).Select(x=>x.Itemid).First();
+                                    _MexicanaHoldsContext.CtsOu.Add(new_OuCts);
 
-                                int resultOus = _MexicanaHoldsContext.SaveChanges();
+                                    int resultOus = await _MexicanaHoldsContext.SaveChangesAsync();
 
+                            }
                         }
                     }
                     else
@@ -86,17 +111,7 @@ namespace CTS_ReturnsApp.Controllers
                         });
                     }
 
-                }
-                catch (Exception ex)
-                {
-
-                    return Json( new
-                    {
-                        result = false,
-                        message = "Error save new CTS",
-                        exception = ex.ToString()
-                    });
-                }
+             
 
 
 
@@ -133,26 +148,39 @@ namespace CTS_ReturnsApp.Controllers
 
 
 
-                //log_history.SaveLog(new log_hold
-                //{
-                //    posix_timestamp = Convert.ToInt32(DateTime.Now.ToUnixTime()),
-                //    table_log = "new hold Solicitud de ingreso a Hold",
-                //    text_log = JsonConvert.SerializeObject(hold_return),
-                //    user_log = Cts.CtsReturns.user
-                //});
+                _MexicanaHoldsContext.LogCtsReturns.Add(new LogCtsReturns
+                {
+                    Date = DateTime.Now,
+                    TableLog = "Solicitud ingreso Cts",
+                    TextLog = " vin " + CtsAndOus.CtsReturns.Vin,
+                    UserLog = CtsAndOus.CtsReturns.UserRequestedCts
+                });
+                    int save_history1 = await _MexicanaHoldsContext.SaveChangesAsync();
 
-                //bool save_history = log_history.SaveHistory(new unit_history
-                //{
-                //    ou_actual = hold_return.ou_resp,
-                //    user_history = hold_return.user,
-                //    posix_timestamp = Convert.ToInt32(DateTime.Now.ToUnixTime()),
-                //    vin = hold_return.vin.ToUpper(),
-                //    notes = hold_return.discrepancy,
-                //    itemid = 0
-                //});
+                var OusSelected = "";
+                List<int?> OusSelectedID= new List<int?>();
 
-                //if (save_history) { Console.WriteLine("Si guardó historial"); }
-                //else { Console.WriteLine("No guardó historial"); }
+                if (CtsAndOus.CtsOu != null) { 
+                       OusSelectedID = CtsAndOus.CtsOu.Select(x => x.OuId).ToList();
+                    OusSelected = string.Join(", ",_MexicanaHoldsContext.Ou.Where(x=>OusSelectedID.Contains(x.Itemid)).Select(x => x.OuName).ToList());
+                }
+
+                 _MexicanaHoldsContext.UnitHistoryCts.Add(new UnitHistoryCts
+                {
+                    OuActual = OusSelected,
+                    UserHistory = CtsAndOus.CtsReturns.UserRequestedCts,
+                    PosixTimestamp = 1,/*//cambiar tipo de dato TODO:Desharcodear*/
+                    Vin = CtsAndOus.CtsReturns.Vin.ToUpper(),
+                    Notes = CtsAndOus.CtsReturns.Discrepancy,
+                    CtsRetursId = CtsAndOus.CtsReturns.Itemid
+                });
+                int save_history = await _MexicanaHoldsContext.SaveChangesAsync();
+
+
+
+
+                if (save_history>=1 && save_history1>=1) { Console.WriteLine("Si guardó historial"); }
+                else { Console.WriteLine("No guardó historial"); }
 
                 return Json(new
                 {
@@ -160,12 +188,25 @@ namespace CTS_ReturnsApp.Controllers
                     message = "Save succeful new CTS Return",
 
                 });
+                }
+                catch (Exception ex)
+                {
+
+                    return Json(new
+                    {
+                        result = false,
+                        message = "Error save new CTS",
+                        exception = ex.ToString()
+                    });
+                }
             }
         }
         [HttpPost(Name = "UpdateHold")]
-        public JsonResult UpdateHold(CtsAndOus Cts)
+        public async Task<JsonResult> UpdateHold(CtsAndOus Cts)
         {
-           var CtstoUpdate= _MexicanaHoldsContext.CtsReturns.FirstOrDefault(x => x.Itemid == Cts.CtsReturns.Itemid);
+            try
+            {
+            var CtstoUpdate= _MexicanaHoldsContext.CtsReturns.FirstOrDefault(x => x.Itemid == Cts.CtsReturns.Itemid);
             var CtsRetReturn = new CtsAndOus();
           
 
@@ -174,23 +215,26 @@ namespace CTS_ReturnsApp.Controllers
             CtstoUpdate.Material = Convert.ToBoolean(Cts.CtsReturns.Material);
             CtstoUpdate.CommentRepair = Cts.CtsReturns.CommentRepair;
             CtstoUpdate.EtaCommentCtsRepair = Convert.ToDateTime(Cts.CtsReturns.EtaCommentCtsRepair);
-            CtstoUpdate.FinderBy = Cts.CtsReturns.FinderBy;
-            DateTime today = DateTime.Now;
+            CtstoUpdate.UserEdit = Cts.CtsReturns.UserEdit;
+              DateTime today = DateTime.Now;
 
-            try
-            {
+            
                 var material_hold = _MexicanaHoldsContext.MaterialCts.Where(mat => mat.CtsRetursId == Cts.CtsReturns.Itemid).ToList();
                 var OusSinModificar = _MexicanaHoldsContext.CtsOu.Where(x => x.CtsRetursId == Cts.CtsReturns.Itemid).OrderBy(x => x.Itemid).Select(x => x.OuId).ToList();
                 var idsCtsOus = _MexicanaHoldsContext.CtsOu.Where(x => x.CtsRetursId == Cts.CtsReturns.Itemid).Select(x => x).ToList();
                 int result_hold = 1;
 
-                int[] listaOusSelected = Cts.CtsOu
-                    .Select(x => x.Itemid)
-                    .ToArray();
+                int[] listaOusSelected = null;
+
+                if (Cts.CtsOu != null) {
+                     listaOusSelected = Cts.CtsOu
+                        .Select(x => x.Itemid)
+                        .ToArray();
+                }
 
 
                 if (idsCtsOus.Count > 0)
-                {
+                { 
                     int count = 0;
                     foreach (var item in idsCtsOus)
                     {
@@ -202,7 +246,7 @@ namespace CTS_ReturnsApp.Controllers
                     }
                     if (count >= 0)
                     {
-                        result_hold = _MexicanaHoldsContext.SaveChanges();
+                        result_hold = await _MexicanaHoldsContext.SaveChangesAsync();
                     }
                 }
 
@@ -210,21 +254,19 @@ namespace CTS_ReturnsApp.Controllers
 
                 if (result_hold > 0)
                 {
-                
-                    var OusSelected = Cts.CtsOu.OrderBy(x => x.Itemid);
+                    if (Cts.CtsOu != null)
+                    {
+                        var OusSelected = Cts.CtsOu.OrderBy(x => x.Itemid);
 
                     int i = 0;
                     foreach (CtsOu ou in OusSelected)
                     {
 
-                        if (ou.Itemid != 0)
+                        if (ou.OuId != 0)
                         {
-                            listaOusSelected[i] = ou.Itemid;
+                            listaOusSelected[i] = (int)ou.OuId;
                         }
-                        else
-                        {
-                            listaOusSelected[i] = 0;
-                        }
+                       
                         i++;
                     }
 
@@ -267,7 +309,7 @@ namespace CTS_ReturnsApp.Controllers
                                     ReleaseCount++;
                                 }
                             }
-                            if (ReleaseCount == CtsOu.Count())
+                            if (ReleaseCount == CtsOu.Count)
                             {
                                 isDifferent = true;
                                 foreach (CtsOu cts_ou in CtsOu)
@@ -275,7 +317,7 @@ namespace CTS_ReturnsApp.Controllers
                                     if (cts_ou.Active == false)
                                     {
                                         cts_ou.Active = true;
-                                        _MexicanaHoldsContext.SaveChanges();
+                                       await _MexicanaHoldsContext.SaveChangesAsync();
                                     }
                                 }
 
@@ -309,19 +351,23 @@ namespace CTS_ReturnsApp.Controllers
                             //em.SendMail(bodyMail, mails.mails, "Holds - Hold Request: " + holdPosted.vin, holdPosted.mail_user);
                             //}
                         }
+                        }
                     }
 
 
                     List<int> ous_selected = new List<int>();
-                    foreach (var item in listaOusSelected)
+                    if(listaOusSelected!=null)
                     {
-                        if (item >= 0)
+                            foreach (var item in listaOusSelected)
                         {
-                            ous_selected.Add(item);
+                            if (item >= 0)
+                            {
+                                ous_selected.Add(item);
+                            }
                         }
                     }
 
-                    
+
                     var mat_hold = _MexicanaHoldsContext.MaterialCts.Where(mat => mat.CtsRetursId == Cts.CtsReturns.Itemid).ToList();
                     string num_part = "", etaString = "", dm = "";
                     DateTime? eta = null;
@@ -342,25 +388,9 @@ namespace CTS_ReturnsApp.Controllers
 
                     if (ous_selected.Count == 0)
                     {
-                        CtsRetReturn.CtsReturns.Itemid = CtstoUpdate.Itemid;
-                        CtsRetReturn.CtsReturns.Customer = CtstoUpdate.Customer;
-                        //CtsRetReturn.CtsReturns.day = Convert.ToInt32((today - updatedHold.start_hold).Value.Days);
-                        //CtsRetReturn.CtsReturns.total_days_hold = Convert.ToInt32((today - updatedHold.start_chasis_date.Value).Days);
-                        CtsRetReturn.CtsReturns.Discrepancy = CtstoUpdate.Discrepancy;
-                        CtsRetReturn.CtsReturns.Material = CtstoUpdate.Material;
-                        //CtsRetReturn.CtsReturns.o = "NA";
-                        //CtsRetReturn.CtsReturns.ou_resp_id = "0";
-                        CtsRetReturn.CtsReturns.ReleaseMfgDate = CtstoUpdate.ReleaseMfgDate;
-                        CtsRetReturn.CtsReturns.StartChasisDate = CtstoUpdate.StartChasisDate;
-                        CtsRetReturn.CtsReturns.StartCts = CtstoUpdate.StartCts;
-                        CtsRetReturn.CtsReturns.Vin = CtstoUpdate.Vin;
-                        CtsRetReturn.CtsReturns.UserRequestedCts = CtstoUpdate.UserRequestedCts;
-                        CtsRetReturn.CtsReturns.UserAcceptIngress = CtstoUpdate.UserAcceptIngress;
-                        CtsRetReturn.CtsReturns.Material = CtstoUpdate.Material;
-                        CtsRetReturn.CtsReturns.EtaFinishCtsQa = CtstoUpdate.EtaFinishCtsQa;
-                        CtsRetReturn.CtsReturns.EtaCommentCtsRepair = CtstoUpdate.EtaCommentCtsRepair;
-                        CtsRetReturn.CtsReturns.CommentRepair = CtstoUpdate.CommentRepair;
-                        _MexicanaHoldsContext.SaveChanges();
+                        CtsRetReturn.CtsReturns= CtstoUpdate;
+                    
+                      await  _MexicanaHoldsContext.SaveChangesAsync();
                     }
                     else
                     {
@@ -392,7 +422,7 @@ namespace CTS_ReturnsApp.Controllers
 
                         if (count2 > 0)
                         {
-                            result_cts2 = _MexicanaHoldsContext.SaveChanges();
+                            result_cts2 =await _MexicanaHoldsContext.SaveChangesAsync();
                         }
                         if (result_cts2 == 0)
                         {
@@ -409,43 +439,42 @@ namespace CTS_ReturnsApp.Controllers
                           
                             var ous =  _MexicanaHoldsContext.Ou.Where(x => ous_selected.Contains(x.Itemid)).ToList();
 
-                            CtsRetReturn.CtsReturns.Itemid = CtstoUpdate.Itemid;
-                            CtsRetReturn.CtsReturns.Customer = CtstoUpdate.Customer;
-                            CtsRetReturn.CtsReturns.Discrepancy = CtstoUpdate.Discrepancy;
-                            CtsRetReturn.CtsReturns.Material = CtstoUpdate.Material;
-                            CtsRetReturn.CtsReturns.ReleaseMfgDate = CtstoUpdate.ReleaseMfgDate;
-                            CtsRetReturn.CtsReturns.StartChasisDate = CtstoUpdate.StartChasisDate;
-                            CtsRetReturn.CtsReturns.StartCts = CtstoUpdate.StartCts;
-                            CtsRetReturn.CtsReturns.Vin = CtstoUpdate.Vin;
-                            CtsRetReturn.CtsReturns.UserRequestedCts = CtstoUpdate.UserRequestedCts;
-                            CtsRetReturn.CtsReturns.UserAcceptIngress = CtstoUpdate.UserAcceptIngress;
-                            CtsRetReturn.CtsReturns.UserEdit = CtstoUpdate.UserEdit;
-                            CtsRetReturn.CtsReturns.EtaCommentCts = CtstoUpdate.EtaCommentCts;
-                            CtsRetReturn.CtsReturns.EtaFinishCtsQa = CtstoUpdate.EtaFinishCtsQa;
-                            CtsRetReturn.CtsReturns.EtaCommentCtsRepair = CtstoUpdate.EtaCommentCtsRepair;
-                            CtsRetReturn.CtsReturns.CommentRepair = CtstoUpdate.CommentRepair;
+                            CtsRetReturn.CtsReturns = CtstoUpdate;
+                         
                             //    hold_return.eta_comment_hold_repair = holdPosted.eta_comment_hold_repair;
-                            _MexicanaHoldsContext.SaveChanges();
+                          await  _MexicanaHoldsContext.SaveChangesAsync();
                         }
                     }
+                    string modificacionOU = "";
+                    if (CtsRetReturn.CtsOu != null)
+                    {
+                        if(OusSinModificar!=null)
+                        modificacionOU = " old OU: " + string.Join(", ", OusSinModificar.Select(x => x)) + ", New OU is: " + String.Join(", ", _MexicanaHoldsContext.Ou.Where(x => CtsRetReturn.CtsOu.Select(x => x.Itemid).Contains(x.Itemid)).Select(x => x.OuName));
+                        else
+                       modificacionOU = " old OU: SIN OU, New OU is: " + String.Join(", ", _MexicanaHoldsContext.Ou.Where(x => CtsRetReturn.CtsOu.Select(x => x.Itemid).Contains(x.Itemid)).Select(x => x.OuName));
+
+                    }
+
                     _MexicanaHoldsContext.LogCtsReturns.Add(new LogCtsReturns
                     {
                         Date = DateTime.Now,
                         TableLog = "cts item id" + CtsRetReturn.CtsReturns.Itemid,
-                        TextLog = "id " + CtsRetReturn.CtsReturns.Itemid + " user: " + CtsRetReturn.CtsReturns.UserEdit + " old OU: " + string.Join(", ", OusSinModificar.Select(x => x)) + " New OU is: " + _MexicanaHoldsContext.Ou.Where(x => CtsRetReturn.CtsOu.Select(x=>x.Itemid).Contains(x.Itemid)).Select(x=>x.OuName),
+
+                        TextLog = "id " + CtsRetReturn.CtsReturns.Itemid + " user: " + CtsRetReturn.CtsReturns.UserEdit + modificacionOU,
                         UserLog = Cts.CtsReturns.UserEdit
                     });
+
 
                 _MexicanaHoldsContext.UnitHistoryCts.Add(new UnitHistoryCts
                     {
                         OuActual = string.Join(", ", OusSinModificar.Select(x => x)),
                         UserHistory = Cts.CtsReturns.UserEdit,
-                        //PosixTimestamp = 1,//modificar tipo de dato en BD
+                        PosixTimestamp = 1,//modificar tipo de dato en BD
                         Vin = Cts.CtsReturns.Vin.ToUpper(),
-                        Notes = " id " + Cts.CtsReturns.Itemid + " user: " + Cts.CtsReturns.UserEdit + " old OU: " + string.Join(", ", OusSinModificar.Select(x => x)) + " New OU is: " + _MexicanaHoldsContext.Ou.Where(x => CtsRetReturn.CtsOu.Select(x => x.Itemid).Contains(x.Itemid)).Select(x => x.OuName),
-                        Itemid = Cts.CtsReturns.Itemid
+                        Notes = " id " + Cts.CtsReturns.Itemid + " user: " + Cts.CtsReturns.UserEdit + modificacionOU,
+                        CtsRetursId = Cts.CtsReturns.Itemid
                     });
-                    int save_history = _MexicanaHoldsContext.SaveChanges();
+                    int save_history =await _MexicanaHoldsContext.SaveChangesAsync();
 
                     if (save_history>1) { Console.WriteLine("Si guardó historial"); }
                     else { Console.WriteLine("No guardó historial"); }
@@ -483,6 +512,164 @@ namespace CTS_ReturnsApp.Controllers
             });
 
         }
+        [HttpGet(Name = "GetCtsBucketList")]
+        public List<CtsReturnSqlReturn> GetCtsBucketList(/*DateTime STARTDATE, DateTime ENDDATE,*/int OPTION,int OU, int role)
+        {
+            //STARTDATE = DateTime.Parse(STARTDATE.ToShortDateString() + " 00:00:00");
+            //ENDDATE = DateTime.Parse(ENDDATE.ToShortDateString() + " 23:59:59");
+            //Esta es la variable que vamos a regresar en forma de JSON
+            List<CtsReturnSqlReturn> result = new List<CtsReturnSqlReturn>();
+            int statusToSearch = 0;
+            try
+            {
+                //Para obtener el ou
+                var ou = _MexicanaHoldsContext.Ou.Where(x => x.OuNumber == OU).Select(x => new { x.OuName, x.Itemid }).ToList();
+                var ouItemsId = _MexicanaHoldsContext.Ou.Where(x => x.OuNumber == OU).Select(x => x.Itemid).ToList();
+
+                List<CtsOu> CtsOuActive;
+                List<CtsOu> CtsOuADelibery;
+                List<CtsReturns> listCtsDB = new List<CtsReturns>();
+                List<CtsOu> CtsOuActiveAndDelibery;
+
+                switch (OPTION)
+                {
+                    case -1:
+                        statusToSearch = -1;   //Request
+                        break;
+                    case 0:
+                        //Accepted
+                        statusToSearch = 0;
+                        break;
+                    case 1:
+                        //Release by OUs
+                        statusToSearch = 1;
+                        break;
+                    case 2:
+                        //Release complete
+                        statusToSearch = 2;
+                        break;
+                    case 3:
+                        //Release complete
+                        statusToSearch = 3;
+                        break;
+                    default:
+                        // code block
+                        break;
+                }
+
+                string query = "";
+                if (role == 1)
+                {
+                    listCtsDB = _MexicanaHoldsContext.CtsReturns.Where(x=>x.StatusCts== statusToSearch && x.Active==true).ToList();
+                    CtsOuActive = _MexicanaHoldsContext.CtsOu.Where(x =>x.Active == true).ToList();
+                    CtsOuADelibery = _MexicanaHoldsContext.CtsOu.Where(x => x.Active == false).ToList();
+
+                    CtsOuActiveAndDelibery = new List<CtsOu>();
+                    CtsOuActiveAndDelibery.AddRange(CtsOuActive);
+                    CtsOuActiveAndDelibery.AddRange(CtsOuADelibery);
+                }
+                else
+                {
+                    if (statusToSearch != -1) {
+                    CtsOuActive = _MexicanaHoldsContext.CtsOu.Where(x => x.Active == true && ouItemsId.Contains((int)x.OuId)).ToList();
+                    CtsOuADelibery = _MexicanaHoldsContext.CtsOu.Where(x => x.Active == false && ouItemsId.Contains((int)x.OuId)).ToList();
+
+                     CtsOuActiveAndDelibery= new List<CtsOu>();
+                        CtsOuActiveAndDelibery.AddRange(CtsOuActive);
+                        CtsOuActiveAndDelibery.AddRange(CtsOuADelibery);
+
+                        List<int> ctsIds = CtsOuActiveAndDelibery.Select(x => (int)x.CtsRetursId).ToList();
+
+                        listCtsDB = _MexicanaHoldsContext.CtsReturns.Where(x => x.StatusCts == statusToSearch && x.Active == true && ctsIds.Contains(x.Itemid)).ToList();
+                    }
+                    else {
+                    listCtsDB = _MexicanaHoldsContext.CtsReturns.Where(x => x.StatusCts == statusToSearch && x.Active == true).ToList();
+                    CtsOuActive = _MexicanaHoldsContext.CtsOu.Where(x => x.Active == true).ToList();
+                    CtsOuADelibery = _MexicanaHoldsContext.CtsOu.Where(x => x.Active == false).ToList();
+
+                        CtsOuActiveAndDelibery = new List<CtsOu>();
+                        CtsOuActiveAndDelibery.AddRange(CtsOuActive);
+                        CtsOuActiveAndDelibery.AddRange(CtsOuADelibery);
+                    }
+                }
+
+                List<CtsAndOus> ctsAndOusReturn = new(
+                    );
+
+                foreach(CtsReturns cts in listCtsDB)
+                {
+                    CtsAndOus ctsAndOus = new CtsAndOus()
+                    {
+                        CtsReturns = cts,
+                        CtsOu = CtsOuActiveAndDelibery.Where(x=>x.CtsRetursId==cts.Itemid).ToList()
+                    };
+
+
+                    ctsAndOusReturn.Add(ctsAndOus);
+                }
+
+
+                CtsReturnSqlReturn ctsReturnCtsSql ;
+                foreach (CtsAndOus CtsAndOusIdentity in ctsAndOusReturn)
+                {
+                    var ou_resp_id = (CtsAndOusIdentity != null && CtsAndOusIdentity.CtsOu!=null) ? CtsAndOusIdentity.CtsOu.Where(x => x.Active == true).Select(x => (int)x.OuId).ToList() : new List<int>() { 0 };
+                    var ous_resp_all =( CtsAndOusIdentity != null & CtsAndOusIdentity.CtsOu != null) ? CtsAndOusIdentity.CtsOu.Select(x => (int)x.OuId).ToList() : new List<int>() { 0 };
+                    var oufinderid = (CtsAndOusIdentity.CtsReturns != null && CtsAndOusIdentity.CtsReturns.FinderBy != null) ? CtsAndOusIdentity.CtsReturns.FinderBy : null;
+                    var ou_finder = _MexicanaHoldsContext.Ou.Where(x => x.Itemid == oufinderid).Select(x=>x.OuName).FirstOrDefault();
+                     ctsReturnCtsSql = new CtsReturnSqlReturn
+                            {
+                                itemid = (int)CtsAndOusIdentity.CtsReturns.Itemid,
+                                vin = CtsAndOusIdentity.CtsReturns.Vin,
+                                customer = (string)CtsAndOusIdentity.CtsReturns.Customer,
+                                days_cts = 0,
+                                total_days_cts = 0,
+                                discrepancy = CtsAndOusIdentity.CtsReturns.Discrepancy,
+                                material = CtsAndOusIdentity.CtsReturns.Material != null?(bool)CtsAndOusIdentity.CtsReturns.Material:false,
+                                ou_resp_id = ou_resp_id,
+                                ous_resp_all = ous_resp_all,
+                                ou_res_name_all = String.Join(", ", _MexicanaHoldsContext.Ou.Where(x => ou_resp_id.Contains(x.Itemid) ).Select(x => x.OuName).ToList()),
+                                ou_res_name_pdtes = String.Join(", ", _MexicanaHoldsContext.Ou.Where(x => ou_resp_id.Contains(x.Itemid) && x.Active==true).Select(x => x.OuName).ToList()),
+                                release_mfg_date = CtsAndOusIdentity.CtsReturns.ReleaseMfgDate==null? "":CtsAndOusIdentity.CtsReturns.ReleaseMfgDate?.ToString("yyyy-MM-dd HH:mm:ss"),
+                                start_chasis_date = CtsAndOusIdentity.CtsReturns.StartChasisDate != null ? CtsAndOusIdentity.CtsReturns.StartChasisDate?.ToString("yyyy-MM-dd HH:mm:ss") : "",
+                                start_cts = CtsAndOusIdentity.CtsReturns.StartCts!=null? CtsAndOusIdentity.CtsReturns.StartCts?.ToString("yyyy-MM-dd HH:mm:ss"):"",
+                                requested_cts = CtsAndOusIdentity.CtsReturns.RequestedCts.ToString("yyyy-MM-dd HH:mm:ss"),
+                                user = CtsAndOusIdentity.CtsReturns.UserRequestedCts,
+                                active = CtsAndOusIdentity.CtsReturns.Active!=null?(bool)CtsAndOusIdentity.CtsReturns.Active:false,
+                                status = CtsAndOusIdentity.CtsReturns.StatusCts,
+                                materials_req = "",
+                                eta_comment_cts = CtsAndOusIdentity.CtsReturns.EtaCommentCts == null ? "" : CtsAndOusIdentity.CtsReturns.EtaCommentCts,
+                                eta_comment_cts_repair = CtsAndOusIdentity.CtsReturns.EtaCommentCtsRepair != null ? CtsAndOusIdentity.CtsReturns.EtaCommentCtsRepair?.ToString("yyyy-MM-dd HH:mm:ss") : "",
+                                comment_repair = CtsAndOusIdentity.CtsReturns.CommentRepair,
+                                item_and_code = CtsAndOusIdentity.CtsReturns.ItemAndCode,
+                                ou_finder = ou_finder!=null? ou_finder:"",
+                                users_repair_ou = CtsAndOusIdentity.CtsOu!=null? string.Join(", ",CtsAndOusIdentity.CtsOu.Select(x=>x.CtsOuRepairEditBy)):"",
+                                user_accept_repair = CtsAndOusIdentity.CtsReturns.UserAcceptRepair,
+                                user_accept_ingress = CtsAndOusIdentity.CtsReturns.UserAcceptIngress,
+                    };
+                    result.Add(ctsReturnCtsSql);
+                }
+                   
+
+            }
+            catch (Exception ex)
+            {
+                //var em = new EMail();
+                //em.SendMailError(ex.Message, ex);
+                throw;
+            }
+            result = result.OrderByDescending(x => x.days_cts).ToList();
+
+            return result;
+        }
+
+        [HttpGet(Name = "GetIssuesShopIssueShoptechLst")]
+        public List<IssueSTlModelSimple> GetIssuesShopIssueShoptechLst(string vin)
+        {
+           DateTime first = DateTime.Today.AddMonths(-2);
+           DateTime second = DateTime.Now;
+            return _unitOfWorkDb2.Db2.GetIssuesShopIssueShoptechList(first,second,vin);
+        }
+
 
 
     }

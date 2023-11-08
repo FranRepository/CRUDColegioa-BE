@@ -1,7 +1,9 @@
 ﻿using CTS_ReturnsApp.Interfaces;
 using CTS_ReturnsApp.Models;
+using CTS_ReturnsApp.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using System.Data.OleDb;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace CTS_ReturnsApp.DataAccess
 {
@@ -29,7 +31,20 @@ namespace CTS_ReturnsApp.DataAccess
             return result;
         }
 
-       private List<DataOMTExcel> InfoTruck(List<string> vins)
+        public List<IssueSTlModelSimple> GetIssuesShopIssueShoptechList(DateTime first, DateTime second, string vin)
+        {
+
+            var result = new List<IssueSTlModelSimple>();
+            List<string> vins = new List<string>
+            {
+                vin.ToUpper()
+            };
+            var ListIssuesShopIssueShoptech = GetIssuesShopIssueShoptechLst(first, second, vin);
+
+            return ListIssuesShopIssueShoptech;
+        }
+
+        private List<DataOMTExcel> InfoTruck(List<string> vins)
         {
             List<DataOMTExcel> data = GetDataFromDB2(vins);
             return data;
@@ -95,8 +110,8 @@ namespace CTS_ReturnsApp.DataAccess
                     list_return.Add(new DataOMTExcel
                     {
                         customer = registros["CUST_NAME_ABBR"] == DBNull.Value || registros["CUST_NAME_ABBR"].ToString().Trim() == "" ? "" : registros["CUST_NAME_ABBR"].ToString().Trim(),
-                        endMFG = registros["DATE_MFG_RLSE"] == DBNull.Value ? DateTime.Today : DateTime.Parse(registros["DATE_MFG_RLSE"].ToString().Trim()),
-                        startChasis = registros["DATE_CHASSIS_START"] == DBNull.Value ? DateTime.Today : DateTime.Parse(registros["DATE_CHASSIS_START"].ToString().Trim()),
+                        endMFG = registros["DATE_MFG_RLSE"] == DBNull.Value ? DateTime.Today : DateTime.Parse(DateTime.Parse(registros["DATE_MFG_RLSE"].ToString().Trim()).ToString("yyyy-MM-dd")),
+                        startChasis = registros["DATE_CHASSIS_START"] == DBNull.Value ? DateTime.Today : DateTime.Parse(DateTime.Parse(registros["DATE_CHASSIS_START"].ToString().Trim()).ToString("yyyy-MM-dd")),
                         vin = registros["VEH_SER_NO"].ToString().Trim()
                     });
                 }
@@ -106,8 +121,80 @@ namespace CTS_ReturnsApp.DataAccess
             }
         }
 
-      
-     
-        
+        public List<IssueSTlModelSimple> GetIssuesShopIssueShoptechLst(DateTime first, DateTime second, string vin)
+        {
+            GeneralUtlts UtilitiesServ  = new GeneralUtlts();
+            //first = UtilitiesServ.ConvertSaltilloTimeToPorlantByDate(first);
+            //second = second;
+            List<IssueSTlModelSimple> issues = new List<IssueSTlModelSimple>();
+            try
+            {
+                //cnx.Open();
+               var query = @"SELECT                    
+                              PRODDB2.QAVHITDS.FOUND_INSP_TEAM --Encontrado por  
+                            , PRODDB2.QAVHITDS.RESP_INSP_TEAM --Encontrado por  
+                            , PRODDB2.QAVHITDS.INSP_ITEM --ItemID  
+                            , PRODDB2.QAINITEM.INSP_ITEM_DESC --ItemDesc
+                            , PRODDB2.QAVHITDS.INSP_DSCREP--Discrepancia
+                            , PRODDB2.QAVHITDS.INSP_DSCREP_DESC--Discrepancia
+                            , PRODDB2.QAVHITDS.INSP_COMT --Comentario
+                            , PRODDB2.QAVHITDS.INSP_ID --Acceso Por 
+                            , PRODDB2.QAVHITDS.TS_LOAD --Carga Inicial 
+                            , PRODDB2.QAVHITDS.VEH_SER_NO --VIN
+                            ,'NO' as YES
+                        FROM 
+                            PRODDB2.QAVHITDS SI
+                           INNER JOIN  PRODDB2.QAINITEM IT
+                          ON PRODDB2.QAINITEM.INSP_ITEM = PRODDB2.QAVHITDS.INSP_ITEM 
+                        WHERE
+                            PRODDB2.QAVHITDS.LOC = 013
+                            AND PRODDB2.QAVHITDS.VEH_SER_NO='" + vin.ToUpper() + @"'
+                            AND PRODDB2.QAVHITDS.TS_LOAD BETWEEN '" + first.ToString("yyyy-MM-dd-HH.mm.ss.ffffff000") + @"' AND '" + second.ToString("yyyy-MM-dd-HH.mm.ss.ffffff000") + @"' 
+                            AND ( PRODDB2.QAVHITDS.FOUND_INSP_TEAM = 711 OR PRODDB2.QAVHITDS.FOUND_INSP_TEAM = 718) AND RPAR_ID IS NULL;";
+
+                using (OleDbConnection cnx = new OleDbConnection(_connectionString))
+                {
+                    cnx.Open();
+                    OleDbCommand cmd = new OleDbCommand(query, cnx);
+                    OleDbDataReader registros = cmd.ExecuteReader();
+                    while (registros.Read())
+                    {
+                        IssueSTlModelSimple art = new IssueSTlModelSimple
+                        {
+                            item_desc = registros["INSP_ITEM"].ToString() + " " + registros["INSP_ITEM_DESC"].ToString(),
+                            ts_load = UtilitiesServ.ConvertPortlandTimeToSaltilloByDate(DateTime.Parse(registros["TS_LOAD"].ToString())),
+                            found_team = registros["FOUND_INSP_TEAM"].ToString(),
+                            veh_ser_no = registros["VEH_SER_NO"].ToString(),
+                            resp_team = registros["RESP_INSP_TEAM"].ToString(),
+                            disc_desc = registros["INSP_DSCREP"].ToString() +" "+registros["INSP_DSCREP_DESC"].ToString(),
+                            found_person = registros["INSP_ID"].ToString(),
+                            comment = registros["INSP_COMT"].ToString(),
+                        };
+                        issues.Add(art);
+                    }
+
+                    string ids = "0";
+                for (int i = 0; i < issues.Count; i++)
+                {
+                    ids += "," + issues[i].item_desc;
+                }
+       
+
+               
+            }
+            }
+            catch (Exception ex)
+            {
+                //Email e = new Email();
+                //e.SendErrorMail("", ex, cmd.CommandText.ToString());
+            }
+            finally
+            {
+              
+            }
+            return issues;
+        }
+
+
     }
 }

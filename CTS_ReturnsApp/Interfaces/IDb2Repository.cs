@@ -8,10 +8,9 @@ using Microsoft.AspNetCore.Mvc;
         {
 
 
-
         public JsonResult InfoTruck(string vin);
-       
 
+        public List<IssueSTlModelSimple> GetIssuesShopIssueShoptechList(DateTime first, DateTime second, string vin);
         }
     }
 

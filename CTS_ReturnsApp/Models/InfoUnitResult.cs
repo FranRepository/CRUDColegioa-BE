@@ -9,4 +9,9 @@
         public string CUST { get; set; }
         public string VIN { get; set; }
     }
+
+    public class InfoUnit
+    {
+        public string VIN { get; set; }
+    }
 }
