@@ -3,7 +3,6 @@ using CTS_ReturnsApp.Models;
 using CTS_ReturnsApp.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using System.Data.OleDb;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace CTS_ReturnsApp.DataAccess
 {
@@ -123,14 +122,14 @@ namespace CTS_ReturnsApp.DataAccess
 
         public List<IssueSTlModelSimple> GetIssuesShopIssueShoptechLst(DateTime first, DateTime second, string vin)
         {
-            GeneralUtlts UtilitiesServ  = new GeneralUtlts();
+            GeneralUtlts UtilitiesServ = new GeneralUtlts();
             //first = UtilitiesServ.ConvertSaltilloTimeToPorlantByDate(first);
             //second = second;
             List<IssueSTlModelSimple> issues = new List<IssueSTlModelSimple>();
             try
             {
                 //cnx.Open();
-               var query = @"SELECT                    
+                var query = @"SELECT                    
                               PRODDB2.QAVHITDS.FOUND_INSP_TEAM --Encontrado por  
                             , PRODDB2.QAVHITDS.RESP_INSP_TEAM --Encontrado por  
                             , PRODDB2.QAVHITDS.INSP_ITEM --ItemID  
@@ -166,7 +165,7 @@ namespace CTS_ReturnsApp.DataAccess
                             found_team = registros["FOUND_INSP_TEAM"].ToString(),
                             veh_ser_no = registros["VEH_SER_NO"].ToString(),
                             resp_team = registros["RESP_INSP_TEAM"].ToString(),
-                            disc_desc = registros["INSP_DSCREP"].ToString() +" "+registros["INSP_DSCREP_DESC"].ToString(),
+                            disc_desc = registros["INSP_DSCREP"].ToString() + " " + registros["INSP_DSCREP_DESC"].ToString(),
                             found_person = registros["INSP_ID"].ToString(),
                             comment = registros["INSP_COMT"].ToString(),
                         };
@@ -174,14 +173,14 @@ namespace CTS_ReturnsApp.DataAccess
                     }
 
                     string ids = "0";
-                for (int i = 0; i < issues.Count; i++)
-                {
-                    ids += "," + issues[i].item_desc;
-                }
-       
+                    for (int i = 0; i < issues.Count; i++)
+                    {
+                        ids += "," + issues[i].item_desc;
+                    }
 
-               
-            }
+
+
+                }
             }
             catch (Exception ex)
             {
@@ -190,7 +189,7 @@ namespace CTS_ReturnsApp.DataAccess
             }
             finally
             {
-              
+
             }
             return issues;
         }

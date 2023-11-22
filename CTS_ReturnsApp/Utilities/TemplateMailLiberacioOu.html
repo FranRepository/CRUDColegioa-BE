@@ -1,0 +1,47 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Rechazo de Liberación de Hold</title>
+    <!-- Enlace a Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        /* Estilos adicionales pueden ser añadidos aquí */
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .signature {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <h2 class="text-center mt-4">Reparación de Liberación de CTS</h2>
+        <p>Se ha reparación la liberación de CTS por OU:  <strong>{{OU}}</strong></p> 
+        <p>de la Unidad(es): <strong>{{VIN}}</strong></p>
+        <p>por Discrepancia(s): {{DISCPREPANCY}}  de la Unidad(es): <strong>{{VIN}}</strong></p>
+        <p>A la fecha: <strong>{{DATE}}</strong></p>
+        <p>Que esta a cargo de las OUs: <strong>{{OU}}</strong></p>
+        <p>Reparacion Validada por el usuario: <strong>{{USER}}</strong></p>
+        <br />
+        <br />
+        <div class="signature">
+            <p>Atentamente,</p>
+            <p>CTS Retornos Daimler Truck</p>
+        </div>
+    </div>
+
+    <!-- Enlace a Bootstrap JS y Popper.js (si es necesario) -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

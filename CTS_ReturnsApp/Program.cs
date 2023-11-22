@@ -1,4 +1,3 @@
-using CTS_ReturnsApp.Controllers;
 using CTS_ReturnsApp.DataAccess;
 using CTS_ReturnsApp.Models;
 using CTS_ReturnsApp.UnitOfWork;
@@ -10,8 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddCors(options=> options.AddPolicy ("AllowAll",
-    p=>p.AllowAnyOrigin()
+builder.Services.AddCors(options => options.AddPolicy("AllowAll",
+    p => p.AllowAnyOrigin()
     .AllowAnyMethod()
     .AllowAnyHeader()
     ));

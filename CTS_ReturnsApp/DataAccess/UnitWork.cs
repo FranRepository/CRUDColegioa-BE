@@ -1,6 +1,5 @@
 ﻿using CTS_ReturnsApp.Interfaces;
 using CTS_ReturnsApp.UnitOfWork;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace CTS_ReturnsApp.DataAccess
 {

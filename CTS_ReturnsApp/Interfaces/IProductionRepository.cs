@@ -4,6 +4,6 @@ namespace CTS_ReturnsApp.Interfaces
 {
     public interface IProductionRepository : IRepository<CtsOu>
     {
-      
+
     }
 }
