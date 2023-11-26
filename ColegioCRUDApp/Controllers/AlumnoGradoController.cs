@@ -54,7 +54,7 @@ namespace ColegioCRUDApp.Controllers
             {
                 AlumnoGrado newAlumnoGrado = new AlumnoGrado
                 {
-                    AlumnoId = alumnoGrado.Id,
+                    AlumnoId = alumnoGrado.AlumnoId,
                     GradoId = alumnoGrado.GradoId,
                     Seccion = alumnoGrado.Seccion,
                 };
