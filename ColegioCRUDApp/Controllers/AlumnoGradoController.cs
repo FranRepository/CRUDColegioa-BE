@@ -1,9 +1,7 @@
-﻿using ColegioCRUDApp.DataAccess;
+﻿
 using ColegioCRUDApp.Models;
 using Microsoft.AspNetCore.Mvc;
 using System;
-using ColegioCRUDApp.Interfaces;
-using ColegioCRUDApp.UnitOfWork;
 
 namespace ColegioCRUDApp.Controllers
 {

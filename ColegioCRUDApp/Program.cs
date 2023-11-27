@@ -1,6 +1,6 @@
-using ColegioCRUDApp.DataAccess;
+
 using ColegioCRUDApp.Models;
-using ColegioCRUDApp.UnitOfWork;
+
 using Microsoft.EntityFrameworkCore;
 using System.Configuration;
 
@@ -21,8 +21,6 @@ builder.Services.AddDbContext<ColegioCRUDContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("ColegioDBConection"));
 });
-builder.Services.AddSingleton<IUnitOfWork>(option =>
-new UnitWork(builder.Configuration.GetConnectionString("ColegioDBConection")));
 
 
 var app = builder.Build();
